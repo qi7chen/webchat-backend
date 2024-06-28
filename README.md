@@ -1,4 +1,4 @@
-# Web Chat GPT
+# Web Chat Backend
 
 聊天机器人服务，基于OpenAI GPT-3.5模型。
 
@@ -10,10 +10,10 @@
 # 安装依赖
 python -m pip install -r requirements.txt
 
-# 创建数据库（默认sqlite）
+# 创建数据库
 python manage.py migrate
 
-# 创建管理员(默认admin:123456)
+# 创建管理员
 python manage.py createsuperuser
 ```
 
@@ -41,10 +41,4 @@ curl -X POST http://localhost:3002/api/chat-process
         "model": "gpt-3.5-turbo-0125"
     }
 }
-```
-
-#### 本地docker运行
-
-```
-docker compose up -d --build
 ```
