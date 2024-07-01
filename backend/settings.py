@@ -84,11 +84,11 @@ ASGI_APPLICATION = 'backend.asgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.getenv('MYSQL_DB'),
-        'USER': os.getenv('MYSQL_USER'),
-        'PASSWORD': os.getenv('MYSQL_PASSWORD'),
-        'HOST': os.getenv('MYSQL_HOST'),
-        'PORT': os.getenv('MYSQL_PORT'),
+        'NAME': os.getenv('MYSQL_DB') or os.getenv('AZURE_MYSQL_NAME'),
+        'USER': os.getenv('MYSQL_USER') or os.getenv('AZURE_MYSQL_USER'),
+        'PASSWORD': os.getenv('MYSQL_PASSWORD') or os.getenv('AZURE_MYSQL_PASSWORD'),
+        'HOST': os.getenv('MYSQL_HOST') or os.getenv('AZURE_MYSQL_HOST'),
+        'PORT': os.getenv('MYSQL_PORT') or 3306,
         'MYSQL': {
             'driver': 'pymysql',
             'charset': 'utf8mb4',
