@@ -186,7 +186,7 @@ LOGGING = {
         'file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
-            'filename': './logs/backend.log',
+            'filename': 'webchat-backend.log',
             'formatter': 'verbose'
         },
     },
