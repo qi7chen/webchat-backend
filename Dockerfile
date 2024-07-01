@@ -1,4 +1,4 @@
-FROM python:3.11-alpine
+FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -17,4 +17,4 @@ COPY . .
 # Create necessary log directory
 RUN mkdir -p /app/logs
 
-CMD ["/usr/local/bin/daphne", "backend.asgi:application"]
+CMD bash -c "uvicorn --host=0.0.0.0 --port=80 backend.asgi:application"

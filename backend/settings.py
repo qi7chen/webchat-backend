@@ -35,7 +35,6 @@ SESSION_COOKIE_AGE = 10*60*60    # 10h
 # Application definition
 
 INSTALLED_APPS = [
-    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
