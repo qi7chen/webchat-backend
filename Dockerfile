@@ -17,4 +17,4 @@ COPY . .
 # Create necessary log directory
 RUN mkdir -p /app/logs
 
-CMD ["daphne", "backend.asgi:application"]
+CMD ["/usr/local/bin/daphne", "backend.asgi:application"]
