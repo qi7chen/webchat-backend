@@ -287,6 +287,4 @@ class ChatStreamView(views.APIView):
         if prompt == '':
             return Response({'status': 'Error', 'message': 'No prompt to send'})
         stream = self.generate_chat_stream(prompt, {})
-        response = StreamingHttpResponse(stream, status=200, content_type='text/event-stream')
-        response['Cache-Control'] = 'no-cache'
-        return response
+        return StreamingHttpResponse(stream, status=200, content_type='text/event-stream')
