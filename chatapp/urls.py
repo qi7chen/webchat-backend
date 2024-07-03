@@ -1,7 +1,7 @@
 from django.urls import path
-import gptchat.views as views
+import chatapp.views as views
 
-app_name = 'gptchat'
+app_name = 'chatapp'
 
 urlpatterns = [
     path('login', views.login, name='login'),

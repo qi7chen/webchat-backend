@@ -6,17 +6,18 @@ import time
 from datetime import datetime
 
 import django.contrib.auth as auth
+from django.views.generic import View
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, StreamingHttpResponse
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods, require_GET
 from rest_framework.authentication import TokenAuthentication
 from rest_framework import permissions, views
 from rest_framework.response import Response
 from openai import OpenAI
-#from django_eventstream import send_event
 
-from gptchat.models import ChatMessage
+
+from chatapp.models import ChatMessage
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,13 @@ def logout(request):
     user = request.user
     auth.logout(request)
     return redirect('userprofile:login')
+
+
+class HomeView(View):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return render(request, 'home.html')
 
 
 class ChatView(views.APIView):

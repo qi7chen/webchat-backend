@@ -23,11 +23,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'IRe5E7E500LhlGgNXsxhV$sQXahA5YBjQaYe^@u&558q8a9gXd')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DJANGO_DEBUG') != 'off'
+DEBUG = os.getenv('DJANGO_DEBUG') == 'on'
 
 ALLOWED_HOSTS = ['*']
 
-CSRF_TRUSTED_ORIGINS = [os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:3000')]
+CSRF_TRUSTED_ORIGINS = [os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', 'http://localhost:3002')]
 
 CSRF_COOKIE_AGE = 604800        # 7d
 SESSION_COOKIE_AGE = 10*60*60    # 10h
@@ -43,7 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
-    'gptchat',
+    'chatapp',
 ]
 
 MIDDLEWARE = [
@@ -61,7 +61,7 @@ ROOT_URLCONF = 'backend.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

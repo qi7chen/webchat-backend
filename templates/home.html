@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+  <title>My ChatGPT</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css">
+<style>
+    .vh-100 {
+        min-height: 100vh;
+    }
+
+    .chat-interface {
+        max-width: 100%;
+        width: 100%;
+        height: 100%;
+    }
+
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        background-color: #f8f8f8;
+        border-radius: 5px;
+        padding: 10px;
+        height: 80%;
+        overflow-y: auto;
+    }
+
+    .chat-message {
+        max-width: 80%;
+        margin-bottom: 10px;
+        padding: 10px;
+        border-radius: 20px;
+    }
+
+    .sent {
+        align-self: flex-end;
+        background-color: #dcf8c6;
+    }
+
+    .received {
+        align-self: flex-start;
+        background-color: #d8d8d8;
+    }
+
+</style>
+</head>
+<body>
+
+<div id="app">
+<div class="container border border-dark-subtle p-1 mt-2 d-flex flex-column align-items-center justify-content-center vh-100">
+    <div class="chat-interface">
+        <h1 class="h1 text-center">Simple Chat Interface</h1>
+        <div class="chat-container" id="chat_output">
+            <div class="chat-message sent" v-for="text in messages">
+              <p class="message-content"> ${ text } </p>
+            </div>
+        </div>
+        <div class="chat-input input-group mt-2">
+            <input type="text" class="form-control" id="user_input" @keyup.enter="sendMessage" placeholder="Type your message..."/>
+            <button class="btn btn-success" id="send_message" @click="sendMessage">Send</button>
+        </div>
+    </div>
+</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"> </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.31/vue.global.prod.min.js"></script>
+<script type="module">
+  let controller; // AbortController to stop the streaming
+  const elem = document.getElementById('chat_output')
+  const chatApp = {
+      delimiters: ['${', '}'],
+      data() {
+        return {
+            input: '',
+            messages: [],
+        }
+      },
+      mounted() {
+
+      },
+      methods: {
+          sendMessage() {
+              this.processing = false;
+              this.input = '';
+              controller = new AbortController();
+              this.startStreaming()
+          },
+          async startStreaming() {
+              try {
+                  const response = await fetch('/api/chat-stream', {
+                      method: 'POST',
+                      signal: controller.signal, // Attach the AbortSignal to the fetch request
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': 'e8487feb1cc878f3e25e854045d93582fed716c8',
+                      },
+                      body: JSON.stringify({ prompt: this.input }),
+                  });
+                  const reader = response.body.getReader();
+                  while (true) {
+                      const { done, value } = await reader.read();
+                      if (done) {
+                          break;
+                      }
+                      const text = new TextDecoder().decode(value);
+                      this.messages.push(text);
+                      elem.scrollTop(elem.prop('scrollHeight'))
+                  }
+                  this.processing = false;
+              } catch (error) {
+                  console.log('error', error);
+              } finally {
+                  this.processing = false;
+                  this.stopStreaming();
+              }
+          },
+          stopStreaming() {
+            if (controller) {
+                controller.abort();
+                controller = null;
+            }
+          },
+      }
+  }
+  Vue.createApp(chatApp).mount("#app");
+</script>
+</body>
+</html>
