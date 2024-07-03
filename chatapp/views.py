@@ -263,6 +263,22 @@ class ChatStreamView(views.APIView):
             api_key=os.getenv('OPENAI_API_KEY', '')
         )
 
+    def chat(self, prompt: str, options: dict):
+        model = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
+        system_message = options.get('systemMessage', 'You are a helpful assistant')
+        response = self.client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        if len(response.choices) == 0:
+            return Response({'status': 'Error', 'message': 'No response from OpenAI'})
+
+        choice = response.choices[0]
+        return HttpResponse(content=choice.message.content)
+
     def generate_chat_stream(self, prompt: str, options: dict):
         system_message = options.get('systemMessage', 'You are a helpful assistant')
         model = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
@@ -279,12 +295,20 @@ class ChatStreamView(views.APIView):
             if chunk.choices and len(chunk.choices) > 0:
                 delta = chunk.choices[0].delta
                 if delta and delta.content:
-                    yield delta.content
+                    off = 0
+                    logger.info("chunk text: {}".format(delta.content))
+                    while off < len(delta.content):
+                        off_to = min(off+2, len(delta.content))
+                        text = delta.content[off: off_to]
+                        off = off_to
+                        yield text
 
     def post(self, request):
         data = request.data
         prompt = data.get('prompt', '')
         if prompt == '':
             return Response({'status': 'Error', 'message': 'No prompt to send'})
+
+        # return self.chat(prompt, {})
         stream = self.generate_chat_stream(prompt, {})
         return StreamingHttpResponse(stream, status=200, content_type='text/event-stream')
