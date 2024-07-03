@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-  <title>My ChatGPT</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css">
+  <title>Simple</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
 <style>
     .vh-100 {
         min-height: 100vh;
@@ -51,20 +51,26 @@
 <div id="app">
 <div class="container border border-dark-subtle p-1 mt-2 d-flex flex-column align-items-center justify-content-center vh-100">
     <div class="chat-interface">
-        <h1 class="h1 text-center">Simple Chat Interface</h1>
+        <h1 class="h1 text-center">Simple Chat</h1>
         <div class="chat-container" id="chat_output">
-            <div class="chat-message sent" v-for="text in messages">
-              <p class="message-content"> ${ text } </p>
+            <div v-for="(text, index) in sent_messages">
+              <div class="chat-message sent">
+                <p class="message-content"> ${ text } </p>
+              </div>
+              <div class="chat-message received">
+                <p class="message-content"> ${ recv_messages[index] } </p>
+              </div>
             </div>
         </div>
         <div class="chat-input input-group mt-2">
-            <input type="text" class="form-control" id="user_input" @keyup.enter="sendMessage" placeholder="Type your message..."/>
-            <button class="btn btn-success" id="send_message" @click="sendMessage">Send</button>
+            <input type="text" class="form-control" id="user_input" v-model="prompt" @keyup.enter="sendPrompt" placeholder="Type your message..."/>
+            <button v-if="!streaming" class="btn btn-success" id="send_message" @click="sendPrompt">Send</button>
+            <button v-if="streaming" class="btn btn-success" id="stop_button" @click="stopStreaming">Stop</button>
         </div>
     </div>
 </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"> </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"> </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.31/vue.global.prod.min.js"></script>
 <script type="module">
   let controller; // AbortController to stop the streaming
@@ -73,30 +79,32 @@
       delimiters: ['${', '}'],
       data() {
         return {
-            input: '',
-            messages: [],
+            prompt: '',
+            sent_messages: [],
+            recv_messages: [],
         }
       },
-      mounted() {
-
-      },
       methods: {
-          sendMessage() {
-              this.processing = false;
-              this.input = '';
+          sendPrompt() {
               controller = new AbortController();
-              this.startStreaming()
+              const index = this.sent_messages.length;
+              this.sent_messages.push(this.prompt.trim());
+              this.prompt = '';
+              this.recv_messages.push('');
+              this.startStreaming(index);
           },
-          async startStreaming() {
+          async startStreaming(index) {
               try {
+                  const body = { prompt: this.sent_messages[index]};
+                  this.prompt = '';
                   const response = await fetch('/api/chat-stream', {
                       method: 'POST',
                       signal: controller.signal, // Attach the AbortSignal to the fetch request
                       headers: {
                           'Content-Type': 'application/json',
-                          'Authorization': 'e8487feb1cc878f3e25e854045d93582fed716c8',
+                          'Authorization': 'Token e8487feb1cc878f3e25e854045d93582fed716c8',
                       },
-                      body: JSON.stringify({ prompt: this.input }),
+                      body: JSON.stringify(body),
                   });
                   const reader = response.body.getReader();
                   while (true) {
@@ -105,14 +113,14 @@
                           break;
                       }
                       const text = new TextDecoder().decode(value);
-                      this.messages.push(text);
-                      elem.scrollTop(elem.prop('scrollHeight'))
+                      this.recv_messages[index] += text;
+                      elem.scrollTop = elem.scrollHeight
                   }
-                  this.processing = false;
+                  this.streaming = false;
               } catch (error) {
                   console.log('error', error);
               } finally {
-                  this.processing = false;
+                  this.streaming = false;
                   this.stopStreaming();
               }
           },

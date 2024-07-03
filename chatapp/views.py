@@ -263,10 +263,8 @@ class ChatStreamView(views.APIView):
             api_key=os.getenv('OPENAI_API_KEY', '')
         )
 
-    def chat_event_stream(self, data):
-        prompt = data.get('prompt', '')
-        system_message = data.get('systemMessage', 'You are a helpful assistant')
-
+    def generate_chat_stream(self, prompt: str, options: dict):
+        system_message = options.get('systemMessage', 'You are a helpful assistant')
         model = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
         stream = self.client.chat.completions.create(
             model=model,
@@ -277,26 +275,18 @@ class ChatStreamView(views.APIView):
             ],
             response_format={'type': 'text'},
         )
-        messageId = str(uuid.uuid4())
-        result = {
-            'role': 'assistant',
-            'id': str(uuid.uuid4()),
-            'parentMessageId': messageId,
-            'text': '',
-            'detail': {},
-        }
         for chunk in stream:
             if chunk.choices and len(chunk.choices) > 0:
                 delta = chunk.choices[0].delta
-                if delta.role:
-                    result['role'] = delta.role
-                if delta and delta.content and len(delta.content) > 0:
-                    result['text'] += delta.content + '\n\n'
-            result['detail'] = chunk.to_dict()
-            print('chunk:', json.dumps(result['detail'], ensure_ascii=False))
-            # send_event('chat-stream', 'message', result)
-        logger.info("result is: " + json.dumps(result, ensure_ascii=False))
+                if delta and delta.content:
+                    yield delta.content
 
     def post(self, request):
-        self.chat_event_stream(request.data)
-        return Response()
+        data = request.data
+        prompt = data.get('prompt', '')
+        if prompt == '':
+            return Response({'status': 'Error', 'message': 'No prompt to send'})
+        stream = self.generate_chat_stream(prompt, {})
+        response = StreamingHttpResponse(stream, status=200, content_type='text/event-stream')
+        response['Cache-Control'] = 'no-cache'
+        return response
