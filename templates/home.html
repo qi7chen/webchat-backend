@@ -113,6 +113,7 @@
                           break;
                       }
                       const text = new TextDecoder().decode(value);
+                      console.log('stream chunk is:', text);
                       this.recv_messages[index] += text;
                       elem.scrollTop = elem.scrollHeight
                   }
