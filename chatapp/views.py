@@ -311,4 +311,6 @@ class ChatStreamView(views.APIView):
 
         # return self.chat(prompt, {})
         stream = self.generate_chat_stream(prompt, {})
-        return StreamingHttpResponse(stream, status=200, content_type='text/event-stream')
+        resp = StreamingHttpResponse(stream, status=200, content_type='text/event-stream')
+        resp.headers['X-Accel-Buffering'] = 'no'  # disable proxy buffering
+        return resp
