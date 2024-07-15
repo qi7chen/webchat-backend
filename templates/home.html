@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-  <title>Simple</title>
+  <title>Simple Chat</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
 <style>
     .vh-100 {
@@ -63,9 +63,9 @@
             </div>
         </div>
         <div class="chat-input input-group mt-2">
-            <input type="text" class="form-control" id="user_input" v-model="prompt" @keyup.enter="sendPrompt" placeholder="Type your message..."/>
-            <button v-if="!streaming" class="btn btn-success" id="send_message" @click="sendPrompt">Send</button>
-            <button v-if="streaming" class="btn btn-success" id="stop_button" @click="stopStreaming">Stop</button>
+            <input type="text" class="form-control" id="user_input" v-model="prompt" @keyup.enter="onClick" placeholder="Type your message..."/>
+            <button :class="button_class" id="send_message" @click="onClick">${ button_text }</button>
+            <button class="btn btn-warning" id="clear_message" @click="clear">Clear</button>
         </div>
     </div>
 </div>
@@ -80,29 +80,79 @@
       data() {
         return {
             prompt: '',
+            streaming: false,
             sent_messages: [],
             recv_messages: [],
         }
       },
-      methods: {
-          sendPrompt() {
-              controller = new AbortController();
-              const index = this.sent_messages.length;
-              this.sent_messages.push(this.prompt.trim());
-              this.prompt = '';
-              this.recv_messages.push('');
-              this.startStreaming(index);
+      mounted: function() {
+        this.loadStore();
+        elem.scrollTo(0, elem.scrollHeight);
+      },
+      computed: {
+          button_text: function() {
+              return this.streaming ? 'Stop' : 'Send';
           },
-          async startStreaming(index) {
+          button_class: function () {
+              return this.streaming ? 'btn btn-danger' : 'btn btn-primary';
+          }
+      },
+      methods: {
+          clear() {
+              this.stopStreaming();
+              this.sent_messages = [];
+              this.recv_messages = [];
+              this.saveStore();
+          },
+          onClick() {
+            if (this.streaming) {
+                this.stopStreaming();
+            } else {
+                this.sendPrompt();
+            }
+          },
+          sendPrompt() {
+              const prompt = this.prompt.trim();
+              if (prompt === '') {
+                  console.log('empty prompt will not send')
+                  return;
+              }
+              this.prompt = '';
+              controller = new AbortController();
+              const body = this.buildConversation(prompt);
+              this.startStreaming(body);
+          },
+          buildConversation(prompt) {
+              this.sent_messages.push(prompt);
+              const body = {
+                  top_p: 0.5,
+                  model: 'gpt-3.5-turbo',
+                  messages: [],
+              };
+              for (let i = 0; i < this.sent_messages.length; i++) {
+                  body.messages.push({
+                      role: 'user',
+                      content: this.sent_messages[i],
+                  });
+                  if (i < this.recv_messages.length) {
+                      body.messages.push({
+                          role: 'system',
+                          content: this.recv_messages[i],
+                      });
+                  }
+              }
+              this.recv_messages.push('');
+              return body;
+          },
+          async startStreaming(body) {
               try {
-                  const body = { prompt: this.sent_messages[index]};
-                  this.prompt = '';
+                  this.streaming = true;
+                  const index = this.recv_messages.length - 1;
                   const response = await fetch('/api/chat-stream', {
                       method: 'POST',
-                      signal: controller.signal, // Attach the AbortSignal to the fetch request
+                      signal: controller.signal, // Attach the AbortSignal to request
                       headers: {
                           'Content-Type': 'application/json',
-                          'Authorization': 'Token e8487feb1cc878f3e25e854045d93582fed716c8',
                       },
                       body: JSON.stringify(body),
                   });
@@ -113,25 +163,47 @@
                           break;
                       }
                       const text = new TextDecoder().decode(value);
-                      console.log('stream chunk is:', text);
-                      this.recv_messages[index] += text;
-                      elem.scrollTop = elem.scrollHeight
+                      // console.log('stream chunk is:', text);
+                      const lines = text.split('\n');
+                      for (let i = 0; i < lines.length; i++) {
+                          if (lines[i].trim() === '') {
+                              continue;
+                          }
+                          // console.log('line is', lines[i]);
+                          const delta = JSON.parse(lines[i]);
+                          this.recv_messages[index] = delta['content'];
+                          elem.scrollTo(0, elem.scrollHeight);
+                      }
                   }
-                  this.streaming = false;
-                  elem.scrollTop = elem.scrollHeight
+                  elem.scrollTop = elem.scrollHeight;
               } catch (error) {
                   console.log('error', error);
               } finally {
-                  this.streaming = false;
                   this.stopStreaming();
+                  this.saveStore();
               }
+              // window.scrollTo(0, document.body.scrollHeight);
           },
           stopStreaming() {
+            this.streaming = false;
             if (controller) {
                 controller.abort();
                 controller = null;
             }
           },
+          loadStore() {
+              const content = localStorage.getItem('APP_SIMPLE_CHAT_STORE');
+              if (content) {
+                  const store = JSON.parse(content);
+                  this.sent_messages = store.sent || [];
+                  this.recv_messages = store.recv || [];
+              }
+          },
+          saveStore() {
+              const store = {sent: this.sent_messages, recv: this.recv_messages};
+              const content = JSON.stringify(store);
+              localStorage.setItem('APP_SIMPLE_CHAT_STORE', content);
+          }
       }
   }
   Vue.createApp(chatApp).mount("#app");
