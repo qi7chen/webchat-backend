@@ -99,10 +99,7 @@ class ChatView(views.APIView):
 
         return conversation_id
 
-    def post(self, request):
-        user = request.user
-        data = request.data
-
+    def chat(self, user, data):
         messages = []
 
         system_message = data.get('systemMessage', '')
@@ -150,7 +147,7 @@ class ChatView(views.APIView):
         )
 
         if len(response.choices) == 0:
-            return Response({'status': 'Error', 'message': 'No response from OpenAI'})
+            return {'status': 'Error', 'message': 'No response from OpenAI'}
 
         choice = response.choices[0]
         chat_s = {
@@ -175,7 +172,7 @@ class ChatView(views.APIView):
         cm = ChatMessage.objects.create(**chat_s)
         cm.save()
 
-        return Response({
+        return {
             'status': 'Success',
             'role': choice.message.role,
             'text': choice.message.content,
@@ -183,7 +180,110 @@ class ChatView(views.APIView):
             'parentMessageId': parent_message_id,
             'system_fingerprint': response.system_fingerprint,
             'detail': choice.to_dict(),
-        })
+        }
+
+    def chat_stream(self, user, data):
+        messages = []
+
+        system_message = data.get('systemMessage', '')
+        if system_message != '':
+            messages.append({'role': 'system', 'content': system_message})
+
+        conversation_id = int(data.get('uuid', 0))
+        parent_message_id = ''
+        options = data.get('options', {})
+        if len(options) > 0:
+            parent_message_id = options.get('parentMessageId', '')
+            if parent_message_id != '':
+                conversation_id = self.load_conversation_messages(user.username, parent_message_id, messages)
+
+        prompt = data.get('prompt', '')
+        if prompt != '':
+            messages.append({'role': 'user', 'content': prompt})
+
+        if len(messages) == 0:
+            return {'status': 'Error', 'message': 'No message to send'}
+
+        model = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
+
+        now = datetime.now()
+        chat_ts = int(time.mktime(now.timetuple()))
+        chat_c = {
+            'created_at': now,
+            'user_name': user.username,
+            'chat_id': str(uuid.uuid4()),
+            'model': '',
+            'conversation_id': '',
+            'text': data.get('prompt', ''),
+        }
+        if conversation_id != 0:
+            chat_c['conversation_id'] = conversation_id
+        else:
+            chat_c['conversation_id'] = chat_ts
+
+        logger.info('create chat %s', json.dumps(messages, ensure_ascii=False))
+
+        cm = ChatMessage.objects.create(**chat_c)
+        cm.save()
+
+        stream = self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            stream=True,
+        )
+        chat_s = {
+            'chat_id': '',
+            'created_at': datetime.now(),
+            'user_name': user.username,
+            'model': model,
+            'conversation_id': chat_c['conversation_id'],
+            'role': 'assistant',
+            'text': '',
+            'detail': {},
+        }
+
+        for chunk in stream:
+            # chat_s['role'] = choice.message.role
+            if chunk.choices and len(chunk.choices) > 0:
+                delta = chunk.choices[0].delta
+                if delta and delta.content:
+                    # logger.info("chunk : " + chunk.to_json())
+                    if not chat_s['chat_id']:
+                        chat_s['chat_id'] = chunk.id
+                    chat_s['text'] += delta.content
+                    ret = {
+                        'status': 'Success',
+                        'role': chat_s['role'],
+                        'text': chat_s['text'],
+                        'id': chunk.id,
+                        'parentMessageId': parent_message_id,
+                        'system_fingerprint': '',
+                        'detail': {},
+                    }
+                    text = json.dumps(ret, ensure_ascii=False, sort_keys=True)
+                    print('response text is: ' + text)
+                    yield text + '\n'  # delimiter for event-stream
+
+        logger.info('chat response: %s', chat_s['text'])
+
+        cm = ChatMessage.objects.create(**chat_s)
+        cm.save()
+
+
+    def post(self, request):
+        data = request.data
+        prompt = data.get('prompt', '')
+        if prompt == '':
+            return Response({'status': 'Error', 'message': 'No prompt to send'})
+
+        # resp = self.chat(request.user, data)
+        # return Response(resp)
+
+        stream = self.chat_stream(request.user, data)
+        resp = StreamingHttpResponse(stream, status=200, content_type='text/event-stream')
+        resp.headers['X-Accel-Buffering'] = 'no'  # disable proxy buffering
+        return resp
+
 
     def get(self, request):
         user = request.user
@@ -291,17 +391,15 @@ class ChatStreamView(views.APIView):
             ],
             response_format={'type': 'text'},
         )
+        text = ''
         for chunk in stream:
             if chunk.choices and len(chunk.choices) > 0:
                 delta = chunk.choices[0].delta
                 if delta and delta.content:
-                    off = 0
-                    logger.info("chunk text: {}".format(delta.content))
-                    while off < len(delta.content):
-                        off_to = min(off+2, len(delta.content))
-                        text = delta.content[off: off_to]
-                        off = off_to
-                        yield text
+                    #logger.info("chunk : " + chunk.to_json())
+                    text += delta.content
+                    yield delta.content
+        print('response text is: ' + text)
 
     def post(self, request):
         data = request.data
