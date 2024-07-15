@@ -185,6 +185,10 @@ class ChatView(views.APIView):
     def chat_stream(self, user, data):
         messages = []
 
+        prompt = data.get('prompt', '')
+        if prompt == '':
+            return {'status': 'Error', 'message': 'No prompt to send'}
+
         system_message = data.get('systemMessage', '')
         if system_message != '':
             messages.append({'role': 'system', 'content': system_message})
@@ -197,9 +201,7 @@ class ChatView(views.APIView):
             if parent_message_id != '':
                 conversation_id = self.load_conversation_messages(user.username, parent_message_id, messages)
 
-        prompt = data.get('prompt', '')
-        if prompt != '':
-            messages.append({'role': 'user', 'content': prompt})
+        messages.append({'role': 'user', 'content': prompt})
 
         if len(messages) == 0:
             return {'status': 'Error', 'message': 'No message to send'}
@@ -212,9 +214,10 @@ class ChatView(views.APIView):
             'created_at': now,
             'user_name': user.username,
             'chat_id': str(uuid.uuid4()),
-            'model': '',
+            'model': model,
+            'text': prompt,
             'conversation_id': '',
-            'text': data.get('prompt', ''),
+            'role': 'user',
         }
         if conversation_id != 0:
             chat_c['conversation_id'] = conversation_id
