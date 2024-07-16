@@ -34,6 +34,8 @@ SESSION_COOKIE_AGE = 10*60*60    # 10h
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -79,6 +81,12 @@ TEMPLATES = [
 ASGI_APPLICATION = 'backend.asgi.application'
 # WSGI_APPLICATION = 'backend.wsgi.application'
 
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
