@@ -264,7 +264,8 @@ class ChatView(views.APIView):
                         'detail': {},
                     }
                     text = json.dumps(ret, ensure_ascii=False, sort_keys=True)
-                    print('response text is: ' + text)
+                    print('chunk text: ' + text)
+                    logger.info('chunk text: %s', chat_s['text'])
                     yield text + '\n'  # delimiter for event-stream
 
         logger.info('chat response: %s', chat_s['text'])
