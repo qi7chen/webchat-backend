@@ -17,4 +17,4 @@ COPY . .
 # Create necessary log directory
 RUN mkdir -p /app/logs
 
-CMD bash -c "daphne -b 0.0.0.0 -p 3002 backend.asgi:application"
+CMD bash -c "gunicorn -b 0.0.0.0:3002 backend.asgi:application"
