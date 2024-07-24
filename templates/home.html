@@ -73,14 +73,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"> </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.31/vue.global.prod.min.js"></script>
 <script type="module">
-  let controller = null;
+  let controller; // AbortController to stop the streaming
   const elem = document.getElementById('chat_output')
   const chatApp = {
       delimiters: ['${', '}'],
       data() {
         return {
             prompt: '',
-            ws: null,
             streaming: false,
             sent_messages: [],
             recv_messages: [],
@@ -91,9 +90,6 @@
         elem.scrollTo(0, elem.scrollHeight);
       },
       computed: {
-          connected: function () {
-              return this.ws && this.ws.readyState === WebSocket.OPEN;
-          },
           button_text: function() {
               return this.streaming ? 'Stop' : 'Send';
           },
@@ -123,8 +119,9 @@
               }
               this.prompt = '';
               controller = new AbortController();
-              const body = this.buildConversation(prompt);
-              this.startStreaming(body);
+              this.sent_messages.push(prompt);
+              this.recv_messages.push('');
+              this.startStreaming({prompt: prompt});
           },
           buildConversation(prompt) {
               this.sent_messages.push(prompt);
@@ -152,12 +149,34 @@
               try {
                   this.streaming = true;
                   const index = this.recv_messages.length - 1;
-                  await this.establish('ws://localhost:3002/chat-ws/', body, (ev) => {
-                        const delta = JSON.parse(ev.data);
-                        this.recv_messages[index] = delta['content'];
-                        elem.scrollTo(0, elem.scrollHeight);
-                    });
-
+                  const response = await fetch('/api/chat-process', {
+                      method: 'POST',
+                      signal: controller.signal, // Attach the AbortSignal to request
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': 'Token e8487feb1cc878f3e25e854045d93582fed716c8',
+                      },
+                      body: JSON.stringify(body),
+                  });
+                  const reader = response.body.getReader();
+                  while (true) {
+                      const { done, value } = await reader.read();
+                      if (done) {
+                          break;
+                      }
+                      const text = new TextDecoder().decode(value);
+                      console.log('stream chunk is:', text);
+                      const parts = text.split('\n');
+                      for (let i = 0; i < parts.length; i++) {
+                          const input = parts[i].trim();
+                          if (input.length === 0) {
+                              continue;
+                          }
+                          const reply = JSON.parse(parts[i]);
+                          this.recv_messages[index] = reply['text'];
+                      }
+                      elem.scrollTo(0, elem.scrollHeight);
+                  }
                   elem.scrollTop = elem.scrollHeight;
               } catch (error) {
                   console.log('error', error);
@@ -169,31 +188,10 @@
           },
           stopStreaming() {
             this.streaming = false;
-            if (this.ws) {
-                this.ws.close();
-                this.ws = null;
+            if (controller) {
+                controller.abort();
+                controller = null;
             }
-          },
-          async establish(url, body, on_recv) {
-              let self = this;
-              const ws = new WebSocket(url);
-              ws.onmessage = on_recv;
-              ws.onclose = (e) => {
-                  console.log('socket close', e);
-                  self.ws = null;
-                  self.stopStreaming();
-              };
-              return new Promise((resolve, reject) => {
-                  ws.onopen = () => {
-                      self.ws = ws;
-                      this.ws.send(JSON.stringify(body));
-                      resolve(ws);
-                  };
-                  ws.onerror = (e) => {
-                      console.log('socket error', e);
-                      reject(e);
-                  };
-              });
           },
           loadStore() {
               const content = localStorage.getItem('APP_SIMPLE_CHAT_STORE');
