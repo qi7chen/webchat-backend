@@ -42,3 +42,14 @@ curl -X POST http://localhost:3002/api/chat-process
     }
 }
 ```
+
+```
+
+####  接口说明
+
+ 接口URL         | 方法           | 用途
+ ---------------|--------------|------
+ /api/chat  | GET / DELETE |  拉取、删除聊天记录
+ /api/chat-completion | POST         | 聊天对话（非stream)
+ /api/chat-process | POST         | 流式聊天对话
+ 

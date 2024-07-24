@@ -75,6 +75,22 @@ class HomeView(View):
         return render(request, 'home.html')
 
 
+def load_conversation_messages(self, username: str, parent_message_id: str, messages: list) -> int:
+    conversation_id = 0
+    query_set = ChatMessage.objects.filter(user_name=username, chat_id=parent_message_id).values('conversation_id')
+    for chat in query_set:
+        conversation_id = chat['conversation_id']
+        break
+    if conversation_id != '':
+        logger.debug('load conversation=%s by chat id=%s', conversation_id, parent_message_id)
+        query_set = ChatMessage.objects.filter(user_name=username, conversation_id=conversation_id).order_by('created_at').values('role', 'text')
+        for rs in query_set:
+            messages.append({'role': rs['role'], 'content': rs['text']})
+
+    return conversation_id
+
+
+# Chat without HTTP stream
 class ChatView(views.APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [permissions.IsAuthenticated]
@@ -85,21 +101,13 @@ class ChatView(views.APIView):
             api_key=os.getenv('OPENAI_API_KEY', '')
         )
 
-    def load_conversation_messages(self, username: str, parent_message_id: str, messages: list) -> int:
-        conversation_id = 0
-        query_set = ChatMessage.objects.filter(user_name=username, chat_id=parent_message_id).values('conversation_id')
-        for chat in query_set:
-            conversation_id = chat['conversation_id']
-            break
-        if conversation_id != '':
-            logger.debug('load conversation=%s by chat id=%s', conversation_id, parent_message_id)
-            query_set = ChatMessage.objects.filter(user_name=username, conversation_id=conversation_id).order_by('created_at').values('role', 'text')
-            for rs in query_set:
-                messages.append({'role': rs['role'], 'content': rs['text']})
+    def post(self, request):
+        user = request.user
+        data = request.data
+        prompt = data.get('prompt', '')
+        if prompt == '':
+            return Response({'status': 'Error', 'message': 'No prompt to send'})
 
-        return conversation_id
-
-    def chat(self, user, data):
         messages = []
 
         system_message = data.get('systemMessage', '')
@@ -112,7 +120,7 @@ class ChatView(views.APIView):
         if len(options) > 0:
             parent_message_id = options.get('parentMessageId', '')
             if parent_message_id != '':
-                conversation_id = self.load_conversation_messages(user.username, parent_message_id, messages)
+                conversation_id = load_conversation_messages(user.username, parent_message_id, messages)
 
         prompt = data.get('prompt', '')
         if prompt != '':
@@ -172,17 +180,29 @@ class ChatView(views.APIView):
         cm = ChatMessage.objects.create(**chat_s)
         cm.save()
 
-        return {
+        return Response({
             'status': 'Success',
             'role': choice.message.role,
             'text': choice.message.content,
             'id': response.id,
             'parentMessageId': parent_message_id,
             'system_fingerprint': response.system_fingerprint,
-            'detail': choice.to_dict(),
-        }
+            'detail': {},
+        })
 
-    def chat_stream(self, user, data):
+
+# Chat with HTTP stream
+class ChatStreamView(views.APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.client = OpenAI(
+            api_key=os.getenv('OPENAI_API_KEY', '')
+        )
+
+    def create_chat_stream(self, user, data):
         messages = []
 
         prompt = data.get('prompt', '')
@@ -199,7 +219,7 @@ class ChatView(views.APIView):
         if len(options) > 0:
             parent_message_id = options.get('parentMessageId', '')
             if parent_message_id != '':
-                conversation_id = self.load_conversation_messages(user.username, parent_message_id, messages)
+                conversation_id = load_conversation_messages(user.username, parent_message_id, messages)
 
         messages.append({'role': 'user', 'content': prompt})
 
@@ -273,30 +293,23 @@ class ChatView(views.APIView):
         cm = ChatMessage.objects.create(**chat_s)
         cm.save()
 
-
     def post(self, request):
         data = request.data
         prompt = data.get('prompt', '')
         if prompt == '':
             return Response({'status': 'Error', 'message': 'No prompt to send'})
 
-        # resp = self.chat(request.user, data)
-        # return Response(resp)
-
-        stream = self.chat_stream(request.user, data)
+        stream = self.create_chat_stream(request.user, data)
         resp = StreamingHttpResponse(stream, status=200, content_type='text/event-stream')
         resp.headers['X-Accel-Buffering'] = 'no'  # disable proxy buffering
         return resp
-
 
     def get(self, request):
         user = request.user
         conversations = {}
         query_set = ChatMessage.objects.filter(user_name=user.username).order_by('created_at').values(
-            'created_at', 'chat_id', 'conversation_id', 'created_at', 'role', 'text', 'detail')
+            'created_at', 'chat_id', 'conversation_id', 'created_at', 'role', 'text')
         for chat in query_set:
-            if type(chat['detail']) is str:
-                chat['detail'] = json.loads(chat['detail'])
             conversation_id = chat['conversation_id']
             if conversation_id not in conversations:
                 conversations[conversation_id] = []
@@ -355,3 +368,4 @@ class ChatView(views.APIView):
             rs = ChatMessage.objects.filter(user_name=user.username, chat_id=chat_id).delete()
 
         return Response({'status': 'Success', 'count': rs[0]})
+
