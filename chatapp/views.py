@@ -75,7 +75,7 @@ class HomeView(View):
         return render(request, 'home.html')
 
 
-def load_conversation_messages(self, username: str, parent_message_id: str, messages: list) -> int:
+def load_conversation_messages(username: str, parent_message_id: str, messages: list) -> int:
     conversation_id = 0
     query_set = ChatMessage.objects.filter(user_name=username, chat_id=parent_message_id).values('conversation_id')
     for chat in query_set:
