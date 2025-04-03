@@ -1,6 +1,6 @@
 # Web Chat Backend
 
-聊天机器人服务，基于OpenAI GPT-3.5模型。
+聊天机器人服务，基于OpenAI接口，可自行定义deepseek、千问等模型。
 
 ### 如何运行
 
