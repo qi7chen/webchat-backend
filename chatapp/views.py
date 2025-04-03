@@ -20,6 +20,7 @@ from openai import OpenAI
 from chatapp.models import ChatMessage
 
 logger = logging.getLogger(__name__)
+model = os.getenv('OPENAI_MODEL', 'gpt-4-mini')
 
 
 def get_request_ip(request):
@@ -98,6 +99,7 @@ class ChatView(views.APIView):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.client = OpenAI(
+            base_url=os.getenv('OPENAI_BASE_URL', ''),
             api_key=os.getenv('OPENAI_API_KEY', '')
         )
 
@@ -128,8 +130,6 @@ class ChatView(views.APIView):
 
         if len(messages) == 0:
             return Response({'status': 'Error', 'message': 'No message to send'})
-
-        model = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
 
         now = datetime.now()
         chat_ts = int(time.mktime(now.timetuple()))
@@ -199,7 +199,8 @@ class ChatStreamView(views.APIView):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.client = OpenAI(
-            api_key=os.getenv('OPENAI_API_KEY', '')
+            base_url=os.getenv('OPENAI_BASE_URL', ''),
+            api_key=os.getenv('OPENAI_API_KEY', ''),
         )
 
     def create_chat_stream(self, user, data):
@@ -225,8 +226,6 @@ class ChatStreamView(views.APIView):
 
         if len(messages) == 0:
             return {'status': 'Error', 'message': 'No message to send'}
-
-        model = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
 
         now = datetime.now()
         chat_ts = int(time.mktime(now.timetuple()))
